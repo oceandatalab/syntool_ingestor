@@ -1,0 +1,14 @@
+[Core]
+Name = Trajectory tiles
+Module = trajectory_tiles
+
+[Documentation]
+Author = OceanDataLab
+Version = 0.1
+Website = http://www.oceandatalab.com
+Description = Produce trajectory tiles from GeoTiff data
+
+[Syntool]
+RepresentationType = ZXY
+RepresentationLevel = 50
+TimelineBehavior = timeline_visible_interval

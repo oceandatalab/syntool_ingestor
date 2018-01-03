@@ -1,0 +1,14 @@
+[Core]
+Name = Vector Fields
+Module = vector_fields
+
+[Documentation]
+Author = OceanDataLab
+Version = 0.1
+Website = http://www.oceandatalab.com
+Description = Produce vector fields from GeoTiff data
+
+[Syntool]
+RepresentationType = VECTOR_FIELD | STREAMLINES
+RepresentationLevel = 90
+TimelineBehavior = timeline_cursor

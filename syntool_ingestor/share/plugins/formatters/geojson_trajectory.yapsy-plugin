@@ -1,0 +1,14 @@
+[Core]
+Name = GeoJSON Trajectory
+Module = geojson_trajectory
+
+[Documentation]
+Author = OceanDataLab
+Version = 0.1
+Website = http://www.oceandatalab.com
+Description = Produce GeoJSON trajectories from input data
+
+[Syntool]
+RepresentationType = TRAJECTORY
+RepresentationLevel = 90
+TimelineBehavior = timeline_cursor

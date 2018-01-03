@@ -1,0 +1,11 @@
+[Core]
+Name = GeoTIFF reader
+Module = geotiff_reader
+
+[Documentation]
+Author = OceanDataLab
+Version = 0.1
+Website = http://www.oceandatalab.com
+Description = Extract metadata from GeoTIFF file
+
+[Syntool]

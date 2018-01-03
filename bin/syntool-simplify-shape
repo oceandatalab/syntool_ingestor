@@ -1,0 +1,189 @@
+#! /usr/bin/env python2
+# encoding: utf-8
+
+"""
+Copyright (C) 2014-2018 OceanDataLab
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
+import logging
+import argparse
+import glob
+import json
+from osgeo import ogr
+import os
+from datetime import datetime
+
+
+# Setup logger
+logger = logging.getLogger()
+handler = logging.StreamHandler()
+handler.setLevel(logging.INFO)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+
+def check_geometry_type(geom):
+    """ """
+    check = False
+    geom_type = geom.GetGeometryType()
+    if geom_type == ogr.wkbPoint:
+        check = True
+    elif geom_type == ogr.wkbPolygon:
+        check = True
+    elif geom_type == ogr.wkbGeometryCollection:
+        ngeom = geom.GetGeometryCount()
+        check = all([geom.GetGeometryRef(igeom).GetGeometryType() == ogr.wkbPolygon \
+                     for igeom in range(ngeom)])
+    return check
+
+
+def count_geometry_point(geom):
+    """ """
+    count = 0
+    ngeom = geom.GetGeometryCount()
+    if ngeom == 0:
+        count += geom.GetPointCount()
+    else:
+        for igeom in range(ngeom):
+            count += count_geometry_point(geom.GetGeometryRef(igeom))
+    return count
+
+
+if '__main__' == __name__:
+    """ """
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        'metadata_path',
+        help='Path to JSON metadata files, enclose in quotes if * is used as wildcard.',
+        action="store"
+    )
+    parser.add_argument(
+        '-t', '--tolerance',
+        help='Shape simplification tolerance (default=0).',
+        type=float,
+        default=0.
+    )
+    parser.add_argument(
+        '-nb', '--no-backup',
+        help='Do not make a copy of metadata files before to modify it.',
+        action='store_true',
+        default=False
+    )
+
+    args = parser.parse_args()
+
+    metadata_paths = glob.glob(args.metadata_path)
+    metadata_paths.sort()
+    metadata_count = len(metadata_paths)
+    logger.info('{} metadata paths found.'.format(metadata_count))
+
+    shape_tolerance = args.tolerance
+    do_backup = args.no_backup == False
+
+    metadata_infos = []
+    for metadata_path in metadata_paths:
+
+        if os.path.basename(metadata_path) != 'metadata.json':
+            raise Exception('Expected "metadata.json" as basename: {}'.format(metadata_path))
+
+        metadata_info = {'path': metadata_path}
+
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+
+        shape_geom = ogr.CreateGeometryFromWkt(metadata['shape_str'])
+
+        if not check_geometry_type(shape_geom):
+            raise Exception('Unexpected shape geometry: {}'.format(shape_geom.ExportToWkt()))
+        shape_geom_type = shape_geom.GetGeometryType()
+
+        shape_geom_npoint = count_geometry_point(shape_geom)
+
+        metadata_info['shape_geom_type'] = shape_geom_type
+        metadata_info['shape_geom_npoint'] = shape_geom_npoint
+        metadata_info['new_shape_geom_type'] = shape_geom_type
+        metadata_info['new_shape_geom_npoint'] = shape_geom_npoint
+
+        new_shape_geom = shape_geom.SimplifyPreserveTopology(shape_tolerance)
+        if not new_shape_geom.Equals(shape_geom):
+
+            if not check_geometry_type(new_shape_geom):
+                raise Exception('Unexpected new shape geometry: {}'.format(new_shape_geom.ExportToWkt()))
+            new_shape_geom_type = new_shape_geom.GetGeometryType()
+
+            shape_env = shape_geom.GetEnvelope()
+            new_shape_env = new_shape_geom.GetEnvelope()
+            if new_shape_env != shape_env:
+                logger.warn('WARNING {}: envelope {} -> {}'.format(metadata['dataset'],
+                                                                   shape_env,
+                                                                   new_shape_env))
+
+            new_shape_geom_npoint = count_geometry_point(new_shape_geom)
+
+            shape_wkt = new_shape_geom.ExportToWkt()
+            shape_wkt = shape_wkt.replace('POLYGON (', 'POLYGON(')
+            metadata['shape_str'] = shape_wkt
+
+            metadata_info['new_shape_geom_type'] = new_shape_geom_type
+            metadata_info['new_shape_geom_npoint'] = new_shape_geom_npoint
+            metadata_info['new_metadata'] = metadata
+
+        metadata_infos.append(metadata_info)
+
+    ngeompoint = sum([1 for info in metadata_infos if info['shape_geom_type'] == ogr.wkbPoint])
+    ngeompoly = sum([1 for info in metadata_infos if info['shape_geom_type'] == ogr.wkbPolygon])
+    ngeomcoll = sum([1 for info in metadata_infos if info['shape_geom_type'] == ogr.wkbGeometryCollection])
+    ngeomtype = [ngeompoint, ngeompoly, ngeomcoll]
+    logger.info('Shape geometry types: {} points / {} polygons / {} collections'.format(*ngeomtype))
+    npoint = sum([info['shape_geom_npoint'] for info in metadata_infos])
+    logger.info('Shape total points: {}'.format(npoint))
+
+    nnew = sum([1 for info in metadata_infos if 'new_metadata' in info])
+    logger.info('{} shapes can be simplified.'.format(nnew))
+
+    if nnew > 0:
+
+        ngeompoint = sum([1 for info in metadata_infos if info['new_shape_geom_type'] == ogr.wkbPoint])
+        ngeompoly = sum([1 for info in metadata_infos if info['new_shape_geom_type'] == ogr.wkbPolygon])
+        ngeomcoll = sum([1 for info in metadata_infos if info['new_shape_geom_type'] == ogr.wkbGeometryCollection])
+        ngeomtype = [ngeompoint, ngeompoly, ngeomcoll]
+        logger.info('New shape geometry types: {} points / {} polygons / {} collections'.format(*ngeomtype))
+        npoint = sum([info['new_shape_geom_npoint'] for info in metadata_infos])
+        logger.info('New shape total points: {}'.format(npoint))
+
+        user_choice = raw_input('Rewrite {} metadata files ? [y/N] '.format(nnew))
+        if user_choice.lower() == 'y':
+
+            logger.info('Rewriting ...')
+
+            timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+            for metadata_info in metadata_infos:
+
+                if 'new_metadata' not in metadata_info:
+                    continue
+
+                metadata = metadata_info['new_metadata']
+                metadata_path = metadata_info['path']
+
+                # Make a backup
+                if do_backup:
+                    backup_path = '{}.{}'.format(metadata_path, timestamp)
+                    os.rename(metadata_path, backup_path)
+
+                # Write new metadata
+                with open(metadata_path, 'w') as f:
+                    json.dump(metadata, f)
+

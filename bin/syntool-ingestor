@@ -1,0 +1,246 @@
+#! /usr/bin/env python2
+# encoding: utf-8
+
+"""
+Copyright (C) 2014-2018 OceanDataLab
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
+from __future__ import print_function
+import os
+import sys
+import json
+import shlex
+import yapsy
+import logging
+import argparse
+import traceback
+import ConfigParser
+import syntool_ingestor
+import syntool_ingestor.utils
+
+logger = logging.getLogger()
+
+harmless_levels = [logging.DEBUG, logging.INFO, logging.WARN]
+info_handler = logging.StreamHandler(stream=sys.stdout)
+logfilter = syntool_ingestor.utils.LevelFilter(harmless_levels)
+info_handler.addFilter(logfilter)
+logger.addHandler(info_handler)
+
+error_handler = logging.StreamHandler(stream=sys.stderr)
+error_handler.setLevel(logging.ERROR)
+logger.addHandler(error_handler)
+
+logger.setLevel(logging.WARN)
+
+def parse_cfg_file(cfg_file_path):
+    """"""
+    parser = ConfigParser.SafeConfigParser()
+    parser.read(cfg_file_path)
+
+    cfg = {}
+
+    cfg['viewport'] = parser.get('portal', 'viewport')
+    cfg['extent'] = parser.get('portal', 'extent')
+    cfg['output_proj'] = parser.getint('portal', 'projection')
+
+    return cfg
+
+
+def parse_args():
+    """"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        'input',
+        help="Input file (GeoTiff)",
+        action="store")
+    parser.add_argument(
+        '-c', '--config',
+        required=True,
+        help='Configuration file',
+        action='store')
+    parser.add_argument(
+        '--output-dir',
+        type=str,
+        help='Path of the directory where the results (tiles, metadata, ...) '\
+             'will be saved',
+        action='store')
+    parser.add_argument(
+        '--debug',
+        help='Activate verbose logging for debug',
+        action='store_true',
+        default=False)
+    parser.add_argument(
+        '--keep-intermediary-files',
+        help='Prevent the program from removing intermediary files (VRT,'\
+             'modified Tiff, etc..)',
+        action='store_true',
+        default=False)
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        default=False,
+        help='Print parsed configuration and do nothing')
+    parser.add_argument(
+        '--options-file',
+        type=str,
+        help='Load syntool-ingestor options from a file.',
+        default=None,
+        action='store')
+    parser.add_argument(
+        '--input-format',
+        help='Input format',
+        action='store')
+    parser.add_argument(
+        '--input-options',
+        nargs='*',
+        help='Options passed to the plugin in charge of parsing the input ' \
+             'file. Options must match the key=value pattern',
+        action='append')
+    parser.add_argument(
+        '--output-format',
+        help='Set the target format (rastertiles, vectorfield, raster)',
+        type=str,
+        action='store')
+    parser.add_argument(
+        '--output-options',
+        nargs='*',
+        help='Options passed to the plugin in charge of formatting the '\
+             'output. Options must match the key=value pattern',
+        action='append')
+
+    args = parser.parse_args()
+    opts = None
+    if args.options_file is not None:
+        if not os.path.exists(args.options_file):
+            logger.error('Options file {} not found'.format(args.options_file))
+            sys.exit(1)
+
+        with open(args.options_file, 'r') as f:
+            options_str = f.read()
+
+        options_str = '-c dummy.cfg {} -- dummy.input'.format(options_str)
+        options_list = shlex.split(options_str)
+        opts = parser.parse_args(options_list)
+    return args, opts
+
+
+def update_cfg(args, cfg):
+    """"""
+    out_options = {}
+    if args.output_options:
+        out_options = map(lambda x: x.split('='), args.output_options[0])
+        out_options = {x[0]:x[1] for x in out_options}
+
+    in_options = {}
+    if args.input_options:
+        in_options = map(lambda x: x.split('='), args.input_options[0])
+        in_options = {x[0]:x[1] for x in in_options}
+
+    display_trigger = out_options.get('display_trigger', None)
+
+    # Input
+    if args.input_format is not None:
+        cfg['input_format'] = args.input_format
+    cfg['input_options'].update(in_options)
+
+    if 'projection' in in_options:
+        cfg['input_proj'] = int(in_options['projection'])
+
+    # Output
+    if args.output_format is not None:
+        cfg['output_format'] = args.output_format
+    cfg['output_options'].update(out_options)
+
+    if 'with-shape' in out_options:
+        value = 'no' == out_options['with-shape'].lower()
+        cfg['no_shape'] = value
+
+    if 'with-dataset-info' in out_options:
+        value = 'yes' == out_options['with-dataset-info'].lower()
+        cfg['create_feature_metadata'] = value
+
+    if 'display-trigger' in out_options:
+        value = out_options['display-trigger']
+        if 'under_cursor' == value:
+            cfg['output_timeline'] = 'timeline_cursor'
+        elif 'in_time_range' == value:
+            cfg['output_timeline'] = 'timeline_visible_interval'
+        else:
+            msg = 'Invalid display trigger "{}"'.format(value)
+            raise Exception(msg)
+
+
+if '__main__' == __name__:
+    args, opts = parse_args()
+
+    if not os.path.exists(args.input):
+        logger.error('Could not find input file "{}"'.format(args.input))
+        sys.exit(1)
+
+    if args.debug:
+        # Activate verbose debugging if user requested it.
+        # Required to debug yapsy plugins
+        logger.setLevel(logging.DEBUG)
+        logging.basicConfig(level=logging.DEBUG)
+
+    try:
+        cfg = parse_cfg_file(args.config)
+    except:
+        logger.error(traceback.print_exc())
+        sys.exit(1)
+
+    if args.output_dir:
+        workspace_root = args.output_dir
+    else:
+        workspace_root = os.getcwd()
+
+    # Initialize config
+    cfg['debug'] = args.debug
+    cfg['keep_intermediary_files'] = args.keep_intermediary_files
+    cfg['workspace_root'] = workspace_root
+    cfg['input_format'] = None
+    cfg['input_options'] = {}
+    cfg['input_proj'] = 4326
+    cfg['output_format'] = None
+    cfg['output_options'] = {}
+    cfg['no_shape'] = False
+    cfg['create_feature_metadata'] = False
+    cfg['output_timeline'] = 'timeline_cursor'
+
+    try:
+        if opts is not None:
+            update_cfg(opts, cfg)
+        update_cfg(args, cfg)
+    except:
+        logger.error(traceback.print_exc())
+        sys.exit(1)
+
+    if cfg['input_format'] is None:
+        cfg['input_format'] = 'geotiff'
+
+    if cfg['output_format'] is None:
+        logger.error('You must set the output format with --output-format')
+        sys.exit(1)
+
+    if args.dry_run:
+        print(json.dumps(cfg, indent=2))
+
+    else:
+        try:
+            syntool_ingestor.process_file(args.input, cfg)
+        except:
+            logger.error(traceback.print_exc())
+            sys.exit(1)

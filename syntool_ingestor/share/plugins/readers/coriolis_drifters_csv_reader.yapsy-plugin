@@ -1,0 +1,11 @@
+[Core]
+Name = CSV reader for Coriolis drifters records
+Module = coriolis_drifters_csv_reader
+
+[Documentation]
+Author = OceanDataLab
+Version = 0.1
+Website = http://www.oceandatalab.com
+Description = Extract data and metadata from Coriolis drifters CSV file (use EWCT LEVEL2 and NSCT LEVEL2 fields to compute current speed).
+
+[Syntool]

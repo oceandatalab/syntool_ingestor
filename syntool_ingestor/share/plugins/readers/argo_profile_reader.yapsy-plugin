@@ -1,0 +1,11 @@
+[Core]
+Name = Provide metadata for argo profilers
+Module = argo_profile_reader
+
+[Documentation]
+Author = OceanDataLab
+Version = 0.1
+Website = http://www.oceandatalab.com
+Description = Provide metadata for argo profilers. Requires two input files in the same directory whose names match the following patterns: XXXXXXXX_Rtraj.nc for trajectory data and XXXXXXXX_prof.nc for profile data. Use one of the two files as input for the ingestor, the other one will be guessed.
+
+[Syntool]

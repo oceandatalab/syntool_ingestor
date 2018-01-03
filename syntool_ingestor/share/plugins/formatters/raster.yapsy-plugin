@@ -1,0 +1,14 @@
+[Core]
+Name = Raster
+Module = raster
+
+[Documentation]
+Author = OceanDataLab
+Version = 0.1
+Website = http://www.oceandatalab.com
+Description = Produce raster from GeoTiff data
+
+[Syntool]
+RepresentationType = IMAGE
+RepresentationLevel = 50
+TimelineBehavior = timeline_visible_interval

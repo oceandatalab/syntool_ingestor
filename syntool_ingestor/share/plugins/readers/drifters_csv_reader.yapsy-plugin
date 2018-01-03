@@ -1,0 +1,11 @@
+[Core]
+Name = CSV reader for drifters records
+Module = drifters_csv_reader
+
+[Documentation]
+Author = OceanDataLab
+Version = 0.1
+Website = http://www.oceandatalab.com
+Description = Extract data and metadata from drifters CSV file
+
+[Syntool]

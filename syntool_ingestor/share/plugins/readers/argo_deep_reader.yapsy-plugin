@@ -1,0 +1,11 @@
+[Core]
+Name = Data reader for ANDRO file (ARGO trajectories at parking depth)
+Module = argo_deep_reader
+
+[Documentation]
+Author = OceanDataLab
+Version = 0.1
+Website = http://www.oceandatalab.com
+Description = Extract data and metadata from ANDRO file
+
+[Syntool]

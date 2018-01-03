@@ -1,0 +1,11 @@
+[Core]
+Name = .dat reader for LASER drifters records
+Module = drifters_laser_reader
+
+[Documentation]
+Author = OceanDataLab
+Version = 0.1
+Website = http://www.oceandatalab.com
+Description = Extract data and metadata from LASER drifters .dat file
+
+[Syntool]

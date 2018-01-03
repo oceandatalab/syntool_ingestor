@@ -1,0 +1,11 @@
+[Core]
+Name = Provide metadata for fronts data from Peter Cornillon
+Module = cornillon_fronts_reader
+
+[Documentation]
+Author = OceanDataLab
+Version = 0.1
+Website = http://www.oceandatalab.com
+Description = Provide metadata for fronts data from Peter Cornillon
+
+[Syntool]

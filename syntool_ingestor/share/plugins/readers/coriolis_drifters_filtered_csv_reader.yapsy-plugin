@@ -1,0 +1,11 @@
+[Core]
+Name = CSV reader for Coriolis drifters records filtered
+Module = coriolis_drifters_filtered_csv_reader
+
+[Documentation]
+Author = OceanDataLab
+Version = 0.1
+Website = http://www.oceandatalab.com
+Description = Extract data and metadata from Coriolis drifters CSV file Filtered from raw files. Velocity is computed from coordinates and filtered. 
+
+[Syntool]

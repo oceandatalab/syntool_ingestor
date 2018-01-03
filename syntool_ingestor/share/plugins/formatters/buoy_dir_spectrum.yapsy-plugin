@@ -1,0 +1,14 @@
+[Core]
+Name = Directional spectrum for buoys data
+Module = buoy_dir_spectrum
+
+[Documentation]
+Author = OceanDataLab
+Version = 0.1
+Website = http://www.oceandatalab.com
+Description = Produce directional spectrum in JSON format
+
+[Syntool]
+RepresentationType = MOORED
+RepresentationLevel = 90
+TimelineBehavior = timeline_cursor
